@@ -85,6 +85,11 @@ class Runner(object):
                           help='Deploy environment. Alternatively setup '
                                'SENTRY_ENVIRONMENT environment variable')
 
+        parser.add_option('--warn_on_output', action="store_true",
+                          help='Generate warnings if the command produces any output '
+                               '(just like crond does). Alternatively setup '
+                               'SENTRY_WARN_ON_OUTPUT environment variable')
+
         return parser
 
     def run(self):
@@ -93,7 +98,12 @@ class Runner(object):
         self.log(out, err, pipe.returncode)
 
     def log(self, out, err, returncode):
-        if returncode == 0:
+        warn_on_output = self.opts.warn_on_output or os.getenv('SENTRY_WARN_ON_OUTPUT', False)
+
+        if warn_on_output and returncode == 0 and len(out) == 0 and len(err) == 0:
+            return
+
+        if returncode == 0 and not warn_on_output:
             return
 
         tags = self.opts.tags or {}
@@ -111,7 +121,7 @@ class Runner(object):
 
         capture_message_kwargs = dict(
             message=self.get_raven_message(returncode),
-            level=logging.ERROR,
+            level=logging.WARNING if returncode == 0 else logging.ERROR,
             tags=tags,
             extra=extra,
         )
